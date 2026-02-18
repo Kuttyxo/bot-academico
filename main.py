@@ -190,7 +190,30 @@ def main():
 
     application.post_init = on_startup
     
+    # --- RENDER HEALTH CHECK SERVER ---
+    # Render necesita que la app escuche en un puerto para considerarla "viva".
+    # Como python-telegram-bot usa Polling (no Webhook), creamos un servidor dummy.
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot is alive!")
+
+    def start_health_server():
+        port = int(os.environ.get("PORT", 8080))
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        logging.info(f"Health check server listening on port {port}")
+        server.serve_forever()
+
+    # Iniciar servidor en hilo aparte
+    threading.Thread(target=start_health_server, daemon=True).start()
+    # ----------------------------------
+
     # Iniciar el bot en modo polling (escucha infinita)
+    # Se bloquea aquí, por eso el server va en hilo aparte.
     application.run_polling()
 
 if __name__ == "__main__":
